@@ -1,5 +1,5 @@
 // Offline support: app shell precached, Scripture and pages cached as they are read.
-const VERSION = 'adapt2us-bible-v2-1';
+const VERSION = 'adapt2us-bible-v2-2';
 const SHELL = [
   './', './index.html', './manifest.webmanifest', './assets/icon.svg',
   './src/styles.css', './src/app.js', './src/books.js', './src/reference.js',

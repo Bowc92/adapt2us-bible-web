@@ -1,17 +1,36 @@
 {
-  "name": "ADAPT2US Bible",
+  "name": "ADAPT2US Ministries \u00b7 Bible",
   "short_name": "ADAPT2US",
-  "description": "Read, understand, reflect and pray. Scripture unchanged; the reading experience adapts to you.",
+  "description": "Your Bible. Your pace. Your way. Read, understand, reflect and pray, offline.",
   "start_url": "./index.html#/home",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait-primary",
   "background_color": "#071634",
   "theme_color": "#071634",
-  "categories": ["books", "lifestyle", "education"],
+  "categories": [
+    "books",
+    "lifestyle",
+    "education"
+  ],
   "icons": [
-    {"src": "assets/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
-    {"src": "assets/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
-    {"src": "assets/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+    {
+      "src": "assets/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
   ]
 }
