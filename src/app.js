@@ -65,10 +65,11 @@ function parseHash() {
   return {name: parts[0] ?? 'home', parts: parts.slice(1), query};
 }
 
-const TAB_FOR = {home: 'home', read: 'read', library: 'read', search: 'read', understand: 'read', journal: 'journal', pray: 'pray', more: 'more', settings: 'more', customize: 'more', saved: 'more', bookmarks: 'more', about: 'more'};
+const TAB_FOR = {home: 'home', read: 'read', library: 'read', search: 'read', understand: 'read', journal: 'journal', pray: 'pray', more: 'more', settings: 'more', customize: 'more', saved: 'more', calendar: 'pray', profile: 'more', bookmarks: 'more', about: 'more'};
 
 async function route() {
   const r = parseHash();
+  if (prayerTimer && r.name !== 'pray') { clearInterval(prayerTimer); prayerTimer = null; }
   stopSpeaking();
   const tab = TAB_FOR[r.name] ?? 'home';
   document.querySelectorAll('.tabbar a').forEach(a => {
@@ -87,6 +88,8 @@ async function route() {
     else if (r.name === 'understand') await renderUnderstand(r);
     else if (r.name === 'customize') renderCustomize();
     else if (r.name === 'saved') await renderSaved(r);
+    else if (r.name === 'calendar') renderCalendar(r);
+    else if (r.name === 'profile') renderProfile();
     else if (r.name === 'settings') renderSettings();
     else if (r.name === 'bookmarks') await renderBookmarks();
     else if (r.name === 'about') renderAbout();
@@ -708,6 +711,7 @@ function renderPray() {
       </div>` : ''}
     </section>
     <aside class="aside">
+      ${renderPrayerExtras()}
       <div class="panel">
         <p class="eyebrow">Your list</p>
         <div class="stack" style="gap:8px">
@@ -721,6 +725,7 @@ function renderPray() {
       </div>
     </aside>`;
 
+  bindPrayerExtras();
   document.getElementById('prayer-form').addEventListener('submit', ev => {
     ev.preventDefault();
     const text = new FormData(ev.target).get('text');
@@ -995,6 +1000,244 @@ async function renderSaved(r) {
   });
 }
 
+/* ---------------------------------------------------------------- calendar */
+
+const CAL_KEY = 'adapt2us-calendar-v1';
+const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+function readCal() {
+  try { const v = JSON.parse(localStorage.getItem(CAL_KEY) ?? '{}'); return {events: Array.isArray(v.events) ? v.events : []}; }
+  catch { return {events: []}; }
+}
+function writeCal(v) { localStorage.setItem(CAL_KEY, JSON.stringify(v)); }
+
+function renderCalendar(r) {
+  const cal = readCal();
+  const today = new Date();
+  const monthParam = /^\d{4}-\d{2}$/.test(r.query.m ?? '') ? r.query.m : `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+  const [yy, mm] = monthParam.split('-').map(Number);
+  const first = new Date(yy, mm - 1, 1);
+  const monthName = first.toLocaleDateString(undefined, {month: 'long', year: 'numeric'});
+  const startPad = first.getDay();
+  const daysInMonth = new Date(yy, mm, 0).getDate();
+  const selected = /^\d{4}-\d{2}-\d{2}$/.test(r.query.d ?? '') ? r.query.d : iso(today);
+  const prev = new Date(yy, mm - 2, 1);
+  const next = new Date(yy, mm, 1);
+  const prevM = `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}`;
+  const nextM = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}`;
+  const dayEvents = cal.events.filter(e => e.date === selected).sort((a, b) => (a.time ?? '').localeCompare(b.time ?? ''));
+  const upcoming = cal.events.filter(e => e.date >= iso(today)).sort((a, b) => (a.date + (a.time ?? '')).localeCompare(b.date + (b.time ?? ''))).slice(0, 4);
+
+  const cells = [];
+  for (let i = 0; i < startPad; i++) cells.push(`<span class="cal-cell is-other"></span>`);
+  for (let d = 1; d <= daysInMonth; d++) {
+    const key = `${yy}-${String(mm).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const count = cal.events.filter(e => e.date === key).length;
+    cells.push(`<button class="cal-cell${key === iso(today) ? ' is-today' : ''}${key === selected ? ' is-sel' : ''}" data-day="${key}">
+      <span>${d}</span>${count ? `<i class="cal-dot"></i>` : ''}
+    </button>`);
+  }
+
+  view.className = 'grid';
+  view.innerHTML = `
+    <section>
+      <p class="eyebrow">Rhythm and reminders</p>
+      <h1>Calendar</h1>
+      <div class="panel" style="margin-top:14px">
+        <div class="row" style="justify-content:space-between;align-items:center">
+          <a class="icon-btn" href="#/calendar?m=${prevM}&d=${selected}" aria-label="Previous month">‹</a>
+          <strong style="font-size:16px">${esc(monthName)}</strong>
+          <a class="icon-btn" href="#/calendar?m=${nextM}&d=${selected}" aria-label="Next month">›</a>
+        </div>
+        <div class="cal-head">${['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(d => `<span>${d}</span>`).join('')}</div>
+        <div class="cal-grid">${cells.join('')}</div>
+      </div>
+
+      <div class="panel" style="margin-top:14px">
+        <p class="eyebrow">${new Date(selected + 'T12:00:00').toLocaleDateString(undefined, {weekday: 'long', month: 'short', day: 'numeric'})}</p>
+        <div class="list">
+          ${dayEvents.length ? dayEvents.map(e => `
+            <div class="item">
+              <div class="item-top"><h3 style="margin:0">${esc(e.title)}</h3><span class="meta">${esc(e.time ?? '')}</span></div>
+              <div class="row tight">
+                <span class="chip${e.remind ? ' live' : ''}">${e.remind ? 'Reminder on' : 'No reminder'}</span>
+                <button class="btn ghost" data-remind="${e.id}">${e.remind ? 'Mute' : 'Remind me'}</button>
+                <button class="btn ghost danger" data-drop="${e.id}">Remove</button>
+              </div>
+            </div>`).join('') : '<p class="muted small" style="margin:0">Nothing on this day yet.</p>'}
+        </div>
+        <form id="event-form" class="stack" style="margin-top:14px">
+          <label class="field">What is it?
+            <input type="text" name="title" placeholder="Bible study, evening prayer…" maxlength="120" required>
+          </label>
+          <label class="field">Time
+            <input type="time" name="time" value="19:00">
+          </label>
+          <button class="btn primary" type="submit">Add event</button>
+        </form>
+      </div>
+    </section>
+    <aside class="aside">
+      <div class="panel">
+        <p class="eyebrow">Coming up</p>
+        <div class="list">
+          ${upcoming.length ? upcoming.map(e => `
+            <a class="item" href="#/calendar?d=${e.date}&m=${e.date.slice(0, 7)}" style="text-decoration:none;color:inherit">
+              <div class="item-top"><h3 style="margin:0">${esc(e.title)}</h3><span class="meta">${esc(e.time ?? '')}</span></div>
+              <span class="muted small">${new Date(e.date + 'T12:00:00').toLocaleDateString(undefined, {month: 'short', day: 'numeric'})}</span>
+            </a>`).join('') : '<p class="muted small" style="margin:0">No events saved yet.</p>'}
+        </div>
+      </div>
+      <div class="panel panel-quiet">
+        <p class="eyebrow">Honest note</p>
+        <p class="small muted" style="margin:0">Events and reminder flags are stored on this device. Push notifications are not wired up yet, so a reminder shows here in the app, not on your lock screen.</p>
+      </div>
+    </aside>`;
+
+  view.querySelector('.cal-grid').addEventListener('click', ev => {
+    const b = ev.target.closest('[data-day]');
+    if (b) location.hash = `#/calendar?d=${b.dataset.day}&m=${b.dataset.day.slice(0, 7)}`;
+  });
+  view.querySelector('section').addEventListener('click', ev => {
+    const rm = ev.target.closest('[data-remind]');
+    if (rm) {
+      const next = readCal();
+      const e = next.events.find(x => x.id === rm.dataset.remind);
+      if (e) e.remind = !e.remind;
+      writeCal(next); renderCalendar(r); return;
+    }
+    const dr = ev.target.closest('[data-drop]');
+    if (dr) {
+      const next = readCal();
+      next.events = next.events.filter(x => x.id !== dr.dataset.drop);
+      writeCal(next); toast('Event removed'); renderCalendar(r);
+    }
+  });
+  document.getElementById('event-form').addEventListener('submit', ev => {
+    ev.preventDefault();
+    const data = new FormData(ev.target);
+    const title = String(data.get('title') ?? '').trim();
+    if (!title) return toast('Give the event a name.');
+    const next = readCal();
+    next.events.push({id: cryptoId(), date: selected, time: String(data.get('time') ?? ''), title, remind: true});
+    writeCal(next);
+    toast('Event added');
+    renderCalendar(r);
+  });
+}
+
+/* ---------------------------------------------------------------- prayer extras */
+
+const PRAYER_SETTINGS_KEY = 'adapt2us-prayer-settings-v1';
+let prayerTimer = null;
+let prayerElapsed = 0;
+
+function readPrayerSettings() {
+  try { return {time: '19:00', remind: true, ...JSON.parse(localStorage.getItem(PRAYER_SETTINGS_KEY) ?? '{}')}; }
+  catch { return {time: '19:00', remind: true}; }
+}
+
+function renderPrayerExtras() {
+  const cfg = readPrayerSettings();
+  const mm = String(Math.floor(prayerElapsed / 60)).padStart(2, '0');
+  const ss = String(prayerElapsed % 60).padStart(2, '0');
+  return `
+    <div class="panel">
+      <p class="eyebrow">My prayer time</p>
+      <div class="row" style="justify-content:space-between">
+        <strong style="font-size:22px;font-variant-numeric:tabular-nums">${esc(cfg.time)}</strong>
+        <label class="switch"><input type="checkbox" id="prayer-remind" ${cfg.remind ? 'checked' : ''}><span></span></label>
+      </div>
+      <input type="time" id="prayer-time" value="${esc(cfg.time)}" aria-label="Prayer time" style="margin-top:10px">
+      <p class="muted small" style="margin:8px 0 0">Saved on this device. Reminders appear in the app; lock-screen notifications are not wired up yet.</p>
+    </div>
+    <div class="panel panel-quiet">
+      <p class="eyebrow">Prayer timer</p>
+      <p class="timer-display" id="timer-display">${mm}:${ss}</p>
+      <div class="row" style="margin-top:10px">
+        <button class="btn primary" id="timer-toggle">${prayerTimer ? 'Pause' : 'Start'}</button>
+        <button class="btn ghost" id="timer-reset">Reset</button>
+      </div>
+    </div>`;
+}
+
+function bindPrayerExtras() {
+  const timeInput = document.getElementById('prayer-time');
+  const remind = document.getElementById('prayer-remind');
+  const saveCfg = () => {
+    const next = {...readPrayerSettings(), time: timeInput.value || '19:00', remind: remind.checked};
+    localStorage.setItem(PRAYER_SETTINGS_KEY, JSON.stringify(next));
+    const strong = timeInput.previousElementSibling?.querySelector('strong');
+    if (strong) strong.textContent = next.time;
+    toast('Prayer time saved');
+  };
+  timeInput?.addEventListener('change', saveCfg);
+  remind?.addEventListener('change', saveCfg);
+
+  document.getElementById('timer-toggle')?.addEventListener('click', ev => {
+    if (prayerTimer) {
+      clearInterval(prayerTimer); prayerTimer = null; ev.target.textContent = 'Start';
+      return;
+    }
+    ev.target.textContent = 'Pause';
+    prayerTimer = setInterval(() => {
+      prayerElapsed += 1;
+      const el = document.getElementById('timer-display');
+      if (!el) { clearInterval(prayerTimer); prayerTimer = null; return; }
+      el.textContent = `${String(Math.floor(prayerElapsed / 60)).padStart(2, '0')}:${String(prayerElapsed % 60).padStart(2, '0')}`;
+    }, 1000);
+  });
+  document.getElementById('timer-reset')?.addEventListener('click', () => {
+    if (prayerTimer) { clearInterval(prayerTimer); prayerTimer = null; }
+    prayerElapsed = 0;
+    const el = document.getElementById('timer-display');
+    if (el) el.textContent = '00:00';
+    const btn = document.getElementById('timer-toggle');
+    if (btn) btn.textContent = 'Start';
+  });
+}
+
+/* ---------------------------------------------------------------- family profile */
+
+const PROFILE_KEY = 'adapt2us-profile-v1';
+
+function renderProfile() {
+  let p = {name: '', household: '', goal: ''};
+  try { p = {...p, ...JSON.parse(localStorage.getItem(PROFILE_KEY) ?? '{}')}; } catch {}
+  view.innerHTML = `
+    <a class="ref-line" href="#/more">← More</a>
+    <p class="eyebrow" style="margin-top:12px">Family profile</p>
+    <h1>Family profile</h1>
+    <p class="lede">Kept on this device only. It shapes the greeting and nothing else yet.</p>
+    <form id="profile-form" class="card">
+      <label class="field">Your name
+        <input type="text" name="name" value="${esc(p.name)}" placeholder="What should the app call you?" maxlength="60">
+      </label>
+      <label class="field">Household
+        <input type="text" name="household" value="${esc(p.household)}" placeholder="e.g. The Farm household" maxlength="80">
+      </label>
+      <label class="field">Reading goal
+        <input type="text" name="goal" value="${esc(p.goal)}" placeholder="e.g. One chapter a day" maxlength="120">
+      </label>
+      <button class="btn primary" type="submit">Save profile</button>
+    </form>
+    <div class="panel panel-quiet" style="margin-top:14px">
+      <p class="eyebrow">Privacy</p>
+      <p class="small muted" style="margin:0">Nothing here is uploaded. It stays in this browser until you erase local data in Settings.</p>
+    </div>`;
+  document.getElementById('profile-form').addEventListener('submit', ev => {
+    ev.preventDefault();
+    const data = new FormData(ev.target);
+    localStorage.setItem(PROFILE_KEY, JSON.stringify({
+      name: String(data.get('name') ?? '').trim(),
+      household: String(data.get('household') ?? '').trim(),
+      goal: String(data.get('goal') ?? '').trim(),
+    }));
+    toast('Profile saved');
+    route();
+  });
+}
+
 /* ---------------------------------------------------------------- bookmarks */
 
 async function renderBookmarks() {
@@ -1031,7 +1274,9 @@ function renderMore() {
     <h1>More</h1>
     <div class="list" style="margin-top:14px">
       <a class="item" href="#/saved" style="text-decoration:none;color:inherit"><div class="item-top"><h3>My Library</h3><span class="meta">Highlights · Bookmarks · Notes</span></div></a>
+      <a class="item" href="#/calendar" style="text-decoration:none;color:inherit"><div class="item-top"><h3>Calendar</h3><span class="meta">Study and prayer times</span></div></a>
       <a class="item" href="#/customize" style="text-decoration:none;color:inherit"><div class="item-top"><h3>Customize</h3><span class="meta">Type, spacing, colour</span></div></a>
+      <a class="item" href="#/profile" style="text-decoration:none;color:inherit"><div class="item-top"><h3>Family profile</h3><span class="meta">Name, household, goal</span></div></a>
       <a class="item" href="#/settings" style="text-decoration:none;color:inherit"><div class="item-top"><h3>Adapt &amp; Settings</h3><span class="meta">Reading, privacy, backup</span></div></a>
       <a class="item" href="#/about" style="text-decoration:none;color:inherit"><div class="item-top"><h3>About ADAPT2US Ministries</h3><span class="meta">Sources and status</span></div></a>
     </div>

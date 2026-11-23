@@ -325,3 +325,24 @@ html[data-theme='day'] .tabbar a[aria-current='page'], html[data-theme='sepia'] 
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
 }
+
+/* ---------------------------------------------------------------- calendar, timer, switch */
+.cal-head { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin: 16px 0 6px;
+  font-size: 10.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-dim); text-align: center; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.cal-cell { position: relative; aspect-ratio: 1; display: grid; place-items: center; border-radius: 10px;
+  background: var(--panel-2); border: 1px solid var(--line-soft); color: var(--text);
+  font: inherit; font-size: 13.5px; cursor: pointer; padding: 0; }
+.cal-cell.is-other { background: transparent; border-color: transparent; cursor: default; }
+.cal-cell.is-today { border-color: var(--accent); }
+.cal-cell.is-sel { background: var(--accent); color: #00131f; font-weight: 700; }
+.cal-dot { position: absolute; bottom: 5px; width: 4px; height: 4px; border-radius: 50%; background: var(--accent-2); }
+.cal-cell.is-sel .cal-dot { background: #00131f; }
+.timer-display { font-size: 38px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; margin: 6px 0 0; }
+.switch { position: relative; display: inline-flex; width: 52px; height: 30px; flex: 0 0 auto; }
+.switch input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+.switch span { width: 100%; height: 100%; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--line); transition: background 0.16s; }
+.switch span::after { content: ''; position: absolute; top: 5px; left: 5px; width: 20px; height: 20px; border-radius: 50%;
+  background: var(--text-dim); transition: transform 0.16s, background 0.16s; }
+.switch input:checked + span { background: color-mix(in srgb, var(--accent) 32%, transparent); border-color: var(--accent); }
+.switch input:checked + span::after { transform: translateX(22px); background: var(--accent); }
